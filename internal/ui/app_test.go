@@ -23,11 +23,19 @@ func fixture(name, subscription string) config.Cluster {
 func simulate(t *testing.T, doc config.Document, save func(config.Document) error) (*App, tcell.SimulationScreen) {
 	t.Helper()
 	a := New(doc, save, config.Defaults("alice"))
+	a.runSection = func(section commands.Section) {
+		t.Errorf("unexpected command execution in UI test: %s", section.Title)
+	}
 	screen := tcell.NewSimulationScreen("UTF-8")
 	a.application.SetScreen(screen)
 	screen.SetSize(120, 32)
 	a.application.ForceDraw()
-	t.Cleanup(func() { a.application.Stop() })
+	t.Cleanup(func() {
+		a.application.Stop()
+		if err := a.terminal.close(); err != nil {
+			t.Error(err)
+		}
+	})
 	return a, screen
 }
 
@@ -234,11 +242,13 @@ func TestResizeAndFormVisibility(t *testing.T) {
 	}
 }
 
-func TestSectionButtonsCopyAndNoOpExecute(t *testing.T) {
+func TestSectionButtonsCopyAndExecuteDispatch(t *testing.T) {
 	first, second := fixture("first", "Dev's [red] subscription"), fixture("second", "prod")
 	a, screen := simulate(t, config.Document{Version: config.Version, Clusters: []config.Cluster{first, second}},
 		func(config.Document) error { t.Fatal("section buttons must not save"); return nil })
 	var copied []string
+	var executed []commands.Section
+	a.runSection = func(section commands.Section) { executed = append(executed, section) }
 	a.copyText = func(text string) error {
 		copied = append(copied, text)
 		return nil
@@ -263,16 +273,30 @@ func TestSectionButtonsCopyAndNoOpExecute(t *testing.T) {
 			if !strings.Contains(a.status.GetText(false), "Copied "+section.data.Title) {
 				t.Fatal("copy confirmation missing")
 			}
-			status := a.status.GetText(false)
+			runsBefore := len(executed)
 			x, y, _, _ = section.execute.GetInnerRect()
 			click(a, x, y)
-			if len(copied) != before+1 || a.status.GetText(false) != status {
-				t.Fatal("Execute had a side effect")
+			if section.data.Command.Destructive() {
+				if !a.confirming || len(executed) != runsBefore {
+					t.Fatal("delete command did not require confirmation")
+				}
+				press(a, tcell.KeyEscape, 0)
+			} else if len(executed) != runsBefore+1 || executed[len(executed)-1].Content != section.data.Content {
+				t.Fatal("Execute did not dispatch the displayed section")
 			}
+			runsBefore = len(executed)
 			a.application.SetFocus(section.execute)
 			press(a, tcell.KeyEnter, 0)
-			if len(copied) != before+1 || a.status.GetText(false) != status {
-				t.Fatal("keyboard Execute had a side effect")
+			if section.data.Command.Destructive() {
+				if !a.confirming || len(executed) != runsBefore {
+					t.Fatal("keyboard delete bypassed confirmation")
+				}
+				press(a, tcell.KeyEscape, 0)
+			} else if len(executed) != runsBefore+1 {
+				t.Fatal("keyboard Execute did not dispatch")
+			}
+			if len(copied) != before+1 {
+				t.Fatal("Execute modified the clipboard")
 			}
 		}
 	}

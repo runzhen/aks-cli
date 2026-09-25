@@ -24,7 +24,7 @@ type preview struct {
 
 func newPreview(focus func(tview.Primitive)) *preview {
 	p := &preview{Grid: tview.NewGrid().SetColumns(0).SetGap(1, 0)}
-	p.SetBorder(true).SetTitle(" Sections - Execute is inactive ")
+	p.SetBorder(true).SetTitle(" Commands - Execute runs in terminal ")
 	p.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
 		if !p.InRect(event.Position()) {
 			return action, event
@@ -66,14 +66,14 @@ func (p *preview) scrollTo(index int) {
 	p.SetOffset(max(0, min(index, len(p.sections)-1)), 0)
 }
 
-func (p *preview) setSections(sections []commands.Section, copyText func(commands.Section)) {
+func (p *preview) setSections(sections []commands.Section, copyText, executeSection func(commands.Section)) {
 	p.Clear()
 	p.sections = nil
 	p.SetOffset(0, 0)
 	heights := make([]int, 0, len(sections))
 	for i, section := range sections {
 		text := tview.NewTextView().SetDynamicColors(false).SetWrap(false).SetText(section.Content)
-		execute := tview.NewButton("Execute").SetSelectedFunc(func() {})
+		execute := tview.NewButton("Execute").SetSelectedFunc(func() { executeSection(section) })
 		copyButton := tview.NewButton("Copy").SetSelectedFunc(func() { copyText(section) })
 		buttons := tview.NewFlex().
 			AddItem(execute, 11, 0, false).
@@ -92,7 +92,7 @@ func (p *preview) setSections(sections []commands.Section, copyText func(command
 		p.sections = append(p.sections, previewSection{section, panel, text, execute, copyButton})
 	}
 	if len(sections) == 0 {
-		empty := tview.NewTextView().SetText("No saved configurations.\n\nClick New or press n to add one.\n\nThis app does not discover clusters or execute Azure commands.")
+		empty := tview.NewTextView().SetText("No saved configurations.\n\nClick New or press n to add one.\n\nSaved configurations are not discovered Azure resources.")
 		p.AddItem(empty, 0, 0, 1, 1, 0, 0, false)
 		heights = []int{0}
 	}

@@ -18,6 +18,11 @@ type Section struct {
 	Title   string
 	Content string
 	Warning string
+	Command Command
+}
+
+func (c Command) Destructive() bool {
+	return len(c.Args) > 1 && (c.Args[1] == "delete" || len(c.Args) > 2 && c.Args[1] == "nodepool" && c.Args[2] == "delete")
 }
 
 var safeWord = regexp.MustCompile(`^[a-zA-Z0-9_./:=+-]+$`)
@@ -72,11 +77,16 @@ func Sections(c config.Cluster) []Section {
 	var out strings.Builder
 	fmt.Fprintf(&out, "export SUBSCRIPTION=%s\nexport LOCATION=%s\nexport RESOURCE_GROUP=%s\nexport GPU_POOL=%s\nexport CLUSTER_NAME=%s\nexport GPU_VM_SIZE=%s",
 		Quote(c.Subscription), Quote(c.Location), Quote(c.ResourceGroup), Quote(c.GPUPool), Quote(c.ClusterName), Quote(c.GPUVMSize))
-	sections := []Section{{Title: "Variables", Content: out.String()}}
+	variables := out.String()
+	sections := []Section{{
+		Title: "Variables", Content: variables,
+		Command: Command{Executable: "/bin/sh", Args: []string{"-c", variables +
+			"\nprintf '%s\\n' \"SUBSCRIPTION=$SUBSCRIPTION\" \"LOCATION=$LOCATION\" \"RESOURCE_GROUP=$RESOURCE_GROUP\" \"GPU_POOL=$GPU_POOL\" \"CLUSTER_NAME=$CLUSTER_NAME\" \"GPU_VM_SIZE=$GPU_VM_SIZE\""}},
+	}}
 	for _, command := range Commands(c) {
 		content := command.String()
 		title, _, _ := strings.Cut(content, " \\\n")
-		sections = append(sections, Section{Title: title, Content: content, Warning: command.Warning})
+		sections = append(sections, Section{Title: title, Content: content, Warning: command.Warning, Command: command})
 	}
 	return sections
 }

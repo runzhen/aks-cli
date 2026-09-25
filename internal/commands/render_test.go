@@ -62,6 +62,12 @@ func TestExactCommandArguments(t *testing.T) {
 		if i > 0 && section.Content != commands[i-1].String() {
 			t.Errorf("section %d does not match command", i)
 		}
+		if i > 0 && !reflect.DeepEqual(section.Command, commands[i-1]) {
+			t.Errorf("section %d execution differs from preview", i)
+		}
+		if section.Command.Destructive() != (i >= 4) {
+			t.Errorf("section %d has incorrect deletion confirmation requirement", i)
+		}
 	}
 	preview := strings.Join(contents, "\n")
 	if strings.Count(preview, "\naz ") != 6 || strings.Contains(preview, "gpu-aks") {

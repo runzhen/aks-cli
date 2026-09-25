@@ -25,7 +25,7 @@ func run() error {
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "Usage: aks-cli\n\nManage local AKS configurations and preview Azure CLI commands.\nNo Azure commands are executed. Config: ~/.config/aks-cli.json")
+		fmt.Fprintln(flag.CommandLine.Output(), "Usage: aks-cli\n\nManage local AKS configurations; preview, copy, and execute commands in a terminal pane.\nExecute runs real Azure operations; delete commands require confirmation.\nF2: terminal | Esc: panes | Ctrl-C: interrupt/quit | Ctrl-Q: quit\nConfig: ~/.config/aks-cli.json")
 	}
 	flag.Parse()
 	if flag.NArg() != 0 {
