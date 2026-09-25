@@ -19,7 +19,7 @@ const (
 type App struct {
 	application *tview.Application
 	pages       *tview.Pages
-	list        *tview.List
+	list        *clusterList
 	preview     *preview
 	status      *tview.TextView
 	copyText    func(string) error
@@ -44,7 +44,7 @@ func New(doc config.Document, save func(config.Document) error, defaults config.
 	}
 	a.preview = newPreview(func(p tview.Primitive) { a.application.SetFocus(p) })
 	a.status = tview.NewTextView().SetDynamicColors(false).SetWordWrap(true)
-	a.list = tview.NewList().ShowSecondaryText(true)
+	a.list = newClusterList(a.removeCluster)
 	a.list.SetBorder(true).SetTitle(" Saved configurations ")
 	a.list.SetChangedFunc(func(index int, _, _ string, _ rune) { a.selectCluster(index) })
 	a.newButton = tview.NewButton("New").SetSelectedFunc(a.showForm)
@@ -127,6 +127,35 @@ func (a *App) copySection(section commands.Section) {
 	a.status.SetText("Copied " + section.Title + " to system clipboard.")
 }
 
+func (a *App) removeCluster(index int) {
+	if index < 0 || index >= len(a.doc.Clusters) {
+		a.status.SetText("Cannot remove configuration: item is no longer available.")
+		return
+	}
+	next := config.Document{Version: a.doc.Version, Clusters: make([]config.Cluster, 0, len(a.doc.Clusters)-1)}
+	next.Clusters = append(next.Clusters, a.doc.Clusters[:index]...)
+	next.Clusters = append(next.Clusters, a.doc.Clusters[index+1:]...)
+	if err := a.save(next); err != nil {
+		a.status.SetText("Cannot remove configuration: " + err.Error())
+		return
+	}
+	selected := a.list.GetCurrentItem()
+	if index < selected {
+		selected--
+	}
+	a.doc = next
+	a.refresh()
+	if len(next.Clusters) == 0 {
+		a.application.SetFocus(a.newButton)
+	} else {
+		selected = min(selected, len(next.Clusters)-1)
+		a.list.SetCurrentItem(selected)
+		a.selectCluster(selected)
+		a.application.SetFocus(a.list)
+	}
+	a.status.SetText("Removed saved configuration. Azure resources were not changed.")
+}
+
 func (a *App) handleKey(event *tcell.EventKey) *tcell.EventKey {
 	if event.Key() == tcell.KeyCtrlC {
 		a.application.Stop()
@@ -162,9 +191,10 @@ func (a *App) handleKey(event *tcell.EventKey) *tcell.EventKey {
 		a.application.SetFocus(focus[(current+delta+len(focus))%len(focus)])
 		return nil
 	}
-	if a.preview.HasFocus() && (event.Key() == tcell.KeyPgDn || event.Key() == tcell.KeyPgUp) {
+	if a.preview.HasFocus() && (event.Key() == tcell.KeyDown || event.Key() == tcell.KeyUp ||
+		event.Key() == tcell.KeyPgDn || event.Key() == tcell.KeyPgUp) {
 		offset, _ := a.preview.GetOffset()
-		if event.Key() == tcell.KeyPgDn {
+		if event.Key() == tcell.KeyDown || event.Key() == tcell.KeyPgDn {
 			offset++
 		} else {
 			offset--

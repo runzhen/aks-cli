@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"aks-cli/internal/commands"
 	"aks-cli/internal/config"
@@ -312,8 +313,11 @@ func TestPreviewMouseScrollAndKeyboardButtons(t *testing.T) {
 	a.application.ForceDraw()
 	x, y, _, _ := a.preview.GetInnerRect()
 	for i := 0; i < 3; i++ {
-		a.pages.MouseHandler()(tview.MouseScrollDown, tcell.NewEventMouse(x, y, tcell.WheelDown, tcell.ModNone),
+		consumed, _ := a.pages.MouseHandler()(tview.MouseScrollDown, tcell.NewEventMouse(x, y, tcell.WheelDown, tcell.ModNone),
 			func(p tview.Primitive) { a.application.SetFocus(p) })
+		if !consumed {
+			t.Fatal("mouse scroll must be consumed to trigger a redraw")
+		}
 		a.application.ForceDraw()
 	}
 	row, _ := a.preview.GetOffset()
@@ -339,4 +343,84 @@ func TestPreviewMouseScrollAndKeyboardButtons(t *testing.T) {
 	if copied != visible.data.Content {
 		t.Fatal("mouse click hit a hidden section's stale button")
 	}
+}
+
+func TestPreviewArrowKeysFromEveryControl(t *testing.T) {
+	a, _ := simulate(t, config.Document{Version: config.Version, Clusters: []config.Cluster{fixture("alice", "dev")}},
+		func(config.Document) error { return nil })
+	for _, target := range a.preview.focusables() {
+		a.application.SetFocus(target)
+		a.application.ForceDraw()
+		before, _ := a.preview.GetOffset()
+		press(a, tcell.KeyDown, 0)
+		down, _ := a.preview.GetOffset()
+		if down != min(before+1, len(a.preview.sections)-1) {
+			t.Fatalf("Down from %T: offset %d -> %d", target, before, down)
+		}
+		if a.application.GetFocus() != a.preview {
+			t.Fatalf("Down from %T did not transfer focus to preview", target)
+		}
+		press(a, tcell.KeyUp, 0)
+		up, _ := a.preview.GetOffset()
+		if up != max(down-1, 0) {
+			t.Fatalf("Up from %T: offset %d -> %d", target, down, up)
+		}
+	}
+}
+
+func TestPreviewScrollRedrawsInEventLoop(t *testing.T) {
+	a, screen := simulate(t, config.Document{Version: config.Version, Clusters: []config.Cluster{fixture("alice", "dev")}},
+		func(config.Document) error { return nil })
+	a.application.SetFocus(a.preview.sections[0].copy)
+	type frame struct {
+		offset int
+		text   string
+	}
+	frames := make(chan frame, 16)
+	a.application.SetAfterDrawFunc(func(tcell.Screen) {
+		offset, _ := a.preview.GetOffset()
+		var text strings.Builder
+		width, height := screen.Size()
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				r, _, _, _ := screen.GetContent(x, y)
+				text.WriteRune(r)
+			}
+			text.WriteByte('\n')
+		}
+		frames <- frame{offset, text.String()}
+	})
+	done := make(chan error, 1)
+	go func() { done <- a.Run() }()
+	defer func() {
+		a.application.Stop()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Error(err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Error("application event loop did not stop")
+		}
+	}()
+	nextFrame := func(want int, title string) {
+		t.Helper()
+		select {
+		case got := <-frames:
+			if got.offset != want || !strings.Contains(got.text, title) {
+				t.Fatalf("expected offset %d and %q, got offset %d:\n%s", want, title, got.offset, got.text)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("scroll event did not redraw")
+		}
+	}
+	nextFrame(0, "Variables")
+	a.application.QueueEvent(tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone))
+	nextFrame(1, "az group create")
+	a.application.QueueEvent(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone))
+	nextFrame(0, "Variables")
+	a.application.QueueEvent(tcell.NewEventMouse(60, 5, tcell.WheelDown, tcell.ModNone))
+	nextFrame(1, "az group create")
+	a.application.QueueEvent(tcell.NewEventMouse(60, 5, tcell.WheelUp, tcell.ModNone))
+	nextFrame(0, "Variables")
 }

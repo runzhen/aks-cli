@@ -28,6 +28,11 @@ Select a row to display its parameters and command previews on the right.
 Click **New**, fill the six fields, then **Save**. Saving records the configuration
 only; it does not provision a cluster.
 
+Click the **x** at the right edge of a cluster's name row to remove that saved
+configuration from `~/.config/aks-cli.json`. The list and preview refresh after
+the save succeeds. This does **not** delete any Azure resources. If saving fails,
+the entry remains and an error is shown.
+
 The right pane has seven bordered sections: **Variables** and one for each of the
 six Azure commands. Every section has **Execute** and **Copy** buttons.
 **Execute intentionally does nothing.** Copy sends only that section's data to the
@@ -40,8 +45,7 @@ Success or failure is shown below the sections.
 | `n` outside the form / New button | Open a new configuration |
 | `Tab` / `Shift-Tab` | Move focus between panes/buttons or form fields |
 | Up / Down in the list | Select a configuration |
-| Up / Down on the sections container | Scroll between sections |
-| Page Up / Page Down anywhere in the preview | Scroll between sections |
+| Up / Down / Page Up / Page Down anywhere in the preview | Scroll between sections, including when text or a button has focus |
 | Left / Right on a section's text | Inspect long values horizontally |
 | Mouse click | Select a cluster, field, or button |
 | Mouse wheel | Scroll the pane under the pointer |
@@ -110,8 +114,8 @@ or resource groups. Subscription aliases are not resolved: a name and ID for the
 same subscription cannot be recognized as equivalent offline.
 
 **Use only one running instance.** Cross-process editing/merging is not supported.
-To edit or remove saved entries in v1, quit the app, back up the JSON file, and
-edit it manually.
+To edit saved entries in v1, quit the app, back up the JSON file, and edit it
+manually. Entries can be removed with the list's **x** control.
 
 ## Command behavior
 
@@ -135,7 +139,7 @@ with these deliberate differences:
   rendered without interpreting terminal color tags.
 
 `gpu-aks` itself is unchanged. Live Azure operations, discovery/status, credentials
-retrieval, automatic changes to your shell environment, configurable node counts, and editing/deleting entries
+retrieval, automatic changes to your shell environment, configurable node counts, and editing entries
 inside the UI are outside v1.
 
 ## Development

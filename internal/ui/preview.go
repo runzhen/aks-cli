@@ -38,7 +38,7 @@ func newPreview(focus func(tview.Primitive)) *preview {
 				offset--
 			}
 			p.scrollTo(offset)
-			return action, nil
+			return tview.MouseConsumed, nil
 		}
 		return action, event
 	})
