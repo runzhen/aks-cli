@@ -438,13 +438,13 @@ func TestPreviewScrollRedrawsInEventLoop(t *testing.T) {
 			t.Fatal("scroll event did not redraw")
 		}
 	}
-	nextFrame(0, "Variables")
+	nextFrame(0, "az group create")
 	a.application.QueueEvent(tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone))
-	nextFrame(1, "az group create")
+	nextFrame(1, "az aks create")
 	a.application.QueueEvent(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone))
-	nextFrame(0, "Variables")
+	nextFrame(0, "az group create")
 	a.application.QueueEvent(tcell.NewEventMouse(60, 5, tcell.WheelDown, tcell.ModNone))
-	nextFrame(1, "az group create")
+	nextFrame(1, "az aks create")
 	a.application.QueueEvent(tcell.NewEventMouse(60, 5, tcell.WheelUp, tcell.ModNone))
-	nextFrame(0, "Variables")
+	nextFrame(0, "az group create")
 }

@@ -58,6 +58,7 @@ func Commands(c config.Cluster) []Command {
 	}
 	deleteGroup := az("group", "delete", "--name", c.ResourceGroup, "--yes", "--no-wait")
 	deleteGroup.Warning = "WARNING: Deleting the resource group deletes ALL resources in that group."
+	getCredentials := az("aks", "get-credentials", "--resource-group", c.ResourceGroup, "--name", c.ClusterName)
 	return []Command{
 		az("group", "create", "--name", c.ResourceGroup, "--location", c.Location),
 		az("aks", "create", "--resource-group", c.ResourceGroup, "--name", c.ClusterName,
@@ -65,6 +66,7 @@ func Commands(c config.Cluster) []Command {
 		az("aks", "nodepool", "add", "--resource-group", c.ResourceGroup,
 			"--cluster-name", c.ClusterName, "--name", c.GPUPool, "--node-count", "1",
 			"--node-vm-size", c.GPUVMSize, "--enable-managed-gpu=true"),
+		getCredentials,
 		deleteGroup,
 		az("aks", "delete", "--resource-group", c.ResourceGroup,
 			"--name", c.ClusterName, "--yes", "--no-wait"),
@@ -78,15 +80,19 @@ func Sections(c config.Cluster) []Section {
 	fmt.Fprintf(&out, "export SUBSCRIPTION=%s\nexport LOCATION=%s\nexport RESOURCE_GROUP=%s\nexport GPU_POOL=%s\nexport CLUSTER_NAME=%s\nexport GPU_VM_SIZE=%s",
 		Quote(c.Subscription), Quote(c.Location), Quote(c.ResourceGroup), Quote(c.GPUPool), Quote(c.ClusterName), Quote(c.GPUVMSize))
 	variables := out.String()
-	sections := []Section{{
+	variablesSection := Section{
 		Title: "Variables", Content: variables,
 		Command: Command{Executable: "/bin/sh", Args: []string{"-c", variables +
 			"\nprintf '%s\\n' \"SUBSCRIPTION=$SUBSCRIPTION\" \"LOCATION=$LOCATION\" \"RESOURCE_GROUP=$RESOURCE_GROUP\" \"GPU_POOL=$GPU_POOL\" \"CLUSTER_NAME=$CLUSTER_NAME\" \"GPU_VM_SIZE=$GPU_VM_SIZE\""}},
-	}}
-	for _, command := range Commands(c) {
+	}
+	var sections []Section
+	for i, command := range Commands(c) {
 		content := command.String()
 		title, _, _ := strings.Cut(content, " \\\n")
 		sections = append(sections, Section{Title: title, Content: content, Warning: command.Warning, Command: command})
+		if i == 2 {
+			sections = append(sections, variablesSection)
+		}
 	}
 	return sections
 }

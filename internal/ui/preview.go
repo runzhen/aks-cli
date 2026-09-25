@@ -24,7 +24,6 @@ type preview struct {
 
 func newPreview(focus func(tview.Primitive)) *preview {
 	p := &preview{Grid: tview.NewGrid().SetColumns(0).SetGap(1, 0)}
-	p.SetBorder(true).SetTitle(" Commands - Execute runs in terminal ")
 	p.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
 		if !p.InRect(event.Position()) {
 			return action, event

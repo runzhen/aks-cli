@@ -33,6 +33,8 @@ func TestExactCommandArguments(t *testing.T) {
 		{"aks", "nodepool", "add", "--resource-group", c.ResourceGroup, "--cluster-name", c.ClusterName,
 			"--name", c.GPUPool, "--node-count", "1", "--node-vm-size", c.GPUVMSize, "--enable-managed-gpu=true",
 			"--subscription", c.Subscription},
+		{"aks", "get-credentials", "--resource-group", c.ResourceGroup, "--name", c.ClusterName,
+			"--subscription", c.Subscription},
 		{"group", "delete", "--name", c.ResourceGroup, "--yes", "--no-wait", "--subscription", c.Subscription},
 		{"aks", "delete", "--resource-group", c.ResourceGroup, "--name", c.ClusterName,
 			"--yes", "--no-wait", "--subscription", c.Subscription},
@@ -40,8 +42,8 @@ func TestExactCommandArguments(t *testing.T) {
 			"--name", c.GPUPool, "--no-wait", "--subscription", c.Subscription},
 	}
 	commands := Commands(c)
-	if len(commands) != 6 {
-		t.Fatalf("expected exactly six commands: %+v", commands)
+	if len(commands) != 7 {
+		t.Fatalf("expected exactly seven commands: %+v", commands)
 	}
 	for i, command := range commands {
 		if command.Executable != "az" || !reflect.DeepEqual(command.Args, want[i]) {
@@ -49,28 +51,32 @@ func TestExactCommandArguments(t *testing.T) {
 		}
 	}
 	sections := Sections(c)
-	if len(sections) != 7 || sections[0].Title != "Variables" {
-		t.Fatalf("expected variables and six command sections: %+v", sections)
+	if len(sections) != 8 || sections[2].Title != "az aks nodepool add" || sections[3].Title != "Variables" {
+		t.Fatalf("expected variables and seven command sections: %+v", sections)
 	}
 	wantVariables := "export SUBSCRIPTION='Team'\"'\"'s dev subscription'\nexport LOCATION=eastus2\nexport RESOURCE_GROUP=custom-rg\nexport GPU_POOL=customgpu\nexport CLUSTER_NAME=custom-cluster\nexport GPU_VM_SIZE=Standard_NC24ads_A100_v4"
-	if sections[0].Content != wantVariables {
-		t.Fatalf("unexpected variables: %q", sections[0].Content)
+	if sections[3].Content != wantVariables {
+		t.Fatalf("unexpected variables: %q", sections[3].Content)
 	}
 	var contents []string
 	for i, section := range sections {
 		contents = append(contents, section.Content)
-		if i > 0 && section.Content != commands[i-1].String() {
+		commandIndex := i
+		if i > 3 {
+			commandIndex--
+		}
+		if i != 3 && section.Content != commands[commandIndex].String() {
 			t.Errorf("section %d does not match command", i)
 		}
-		if i > 0 && !reflect.DeepEqual(section.Command, commands[i-1]) {
+		if i != 3 && !reflect.DeepEqual(section.Command, commands[commandIndex]) {
 			t.Errorf("section %d execution differs from preview", i)
 		}
-		if section.Command.Destructive() != (i >= 4) {
+		if section.Command.Destructive() != (i >= 5 && i <= 7) {
 			t.Errorf("section %d has incorrect deletion confirmation requirement", i)
 		}
 	}
 	preview := strings.Join(contents, "\n")
-	if strings.Count(preview, "\naz ") != 6 || strings.Contains(preview, "gpu-aks") {
+	if strings.Count("\n"+preview, "\naz ") != 7 || strings.Contains(preview, "gpu-aks") {
 		t.Fatal("preview contains duplicate commands or obsolete section headers")
 	}
 	for _, command := range commands {
@@ -87,7 +93,7 @@ func TestExactCommandArguments(t *testing.T) {
 	if strings.Contains(preview, "az account set") || strings.Contains(preview, "--node-taints") {
 		t.Fatal("preview changes active account or adds a taint")
 	}
-	if strings.Count(preview, "--subscription "+Quote(c.Subscription)) != 6 {
+	if strings.Count(preview, "--subscription "+Quote(c.Subscription)) != 7 {
 		t.Fatal("not all commands include the quoted subscription")
 	}
 	wantFirst := "az group create \\\n  --name custom-rg \\\n  --location eastus2 \\\n  --subscription 'Team'\"'\"'s dev subscription'"
@@ -95,9 +101,17 @@ func TestExactCommandArguments(t *testing.T) {
 		t.Fatalf("rendered command = %q, want %q", got, wantFirst)
 	}
 
-	deleteGroup := commands[3]
-	if sections[4].Warning != deleteGroup.Warning || !strings.Contains(sections[4].Warning, "ALL resources") {
+	deleteGroup := commands[4]
+	if sections[5].Warning != deleteGroup.Warning || !strings.Contains(sections[5].Warning, "ALL resources") {
 		t.Fatal("resource group deletion section is missing its warning")
+	}
+	credentials := sections[4]
+	if credentials.Title != "az aks get-credentials" || credentials.Warning != "" {
+		t.Fatal("credentials section must have its title and no warning text")
+	}
+	wantCredentials := "az aks get-credentials \\\n  --resource-group custom-rg \\\n  --name custom-cluster \\\n  --subscription 'Team'\"'\"'s dev subscription'"
+	if credentials.Content != wantCredentials {
+		t.Fatalf("credentials preview = %q, want %q", credentials.Content, wantCredentials)
 	}
 }
 

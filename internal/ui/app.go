@@ -62,7 +62,9 @@ func New(doc config.Document, save func(config.Document) error, defaults config.
 	left := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(a.newButton, 3, 0, false).
 		AddItem(a.list, 0, 1, true)
+	commandHeading := tview.NewTextView().SetText(" ")
 	right := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(commandHeading, 1, 0, false).
 		AddItem(a.preview, 0, 1, false).AddItem(a.status, 2, 0, false)
 	body := tview.NewFlex().AddItem(left, 0, 1, true).AddItem(right, 0, 2, false)
 	a.split = tview.NewFlex().SetDirection(tview.FlexRow).AddItem(body, 0, 1, true)

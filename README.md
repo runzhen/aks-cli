@@ -14,11 +14,12 @@ Requires Go 1.25 or newer and an interactive terminal, at least 80 columns by 24
 rows. Intended for macOS and Linux.
 
 ```sh
-go build -o aks-cli .
+make
 ./aks-cli
 ```
 
-Alternatively, run `go run .` during development. `./aks-cli --help` prints usage.
+`make run` builds and launches the UI. Without Make, use `go build -o aks-cli .`
+or `go run .` during development. `./aks-cli --help` prints usage.
 Azure CLI on `PATH` and an existing Azure login are required for Execute on Azure
 commands. Browsing, saving, and copying configurations work without Azure CLI.
 
@@ -34,8 +35,10 @@ configuration from `~/.config/aks-cli.json`. The list and preview refresh after
 the save succeeds. This does **not** delete any Azure resources. If saving fails,
 the entry remains and an error is shown.
 
-The right pane has seven bordered sections: **Variables** and one for each of the
-six Azure commands. Every section has **Execute** and **Copy** buttons.
+The right pane has eight bordered sections: **Variables** and one for each of the
+seven Azure commands. Every section has **Execute** and **Copy** buttons.
+**Variables** appears immediately after `az aks nodepool add`, before
+`az aks get-credentials`.
 Execute opens a terminal pane across the bottom, beneath both existing panes,
 and runs that section. Copy sends only that section's data to the
 system clipboard (no borders, buttons, or warnings). Variables are copied as six
@@ -161,7 +164,8 @@ manually. Entries can be removed with the list's **x** control.
 
 The preview keeps the six configuration variables and displays exactly these
 commands once each: `az group create`, `az aks create`, `az aks nodepool add`,
-`az group delete`, `az aks delete`, and `az aks nodepool delete`.
+`az aks get-credentials`, `az group delete`, `az aks delete`, and
+`az aks nodepool delete`.
 There are no duplicate `gpu-aks` sections. Commands follow the original script
 with these deliberate differences:
 
@@ -177,18 +181,25 @@ with these deliberate differences:
   the AKS cluster. Review destructive commands before copying them elsewhere.
 - Shell-sensitive values are quoted as literal arguments, and preview text is
   rendered without interpreting terminal color tags.
+- `az aks get-credentials` retrieves standard user credentials for the selected
+  cluster and subscription, updates your local kubeconfig, and changes its current
+  context. It does not request `--admin` or force `--overwrite-existing`; answer
+  any Azure CLI overwrite prompt in the terminal pane.
 
-`gpu-aks` itself is unchanged. Automatic discovery/status, credentials retrieval,
+`gpu-aks` itself is unchanged. Automatic discovery/status,
 automatic changes to your parent shell environment, configurable node counts, and
 editing entries inside the UI are outside v1.
 
 ## Development
 
 ```sh
-go test ./...
-go vet ./...
-go build ./...
+make check      # Tests, vet, and build
+make test-race  # Tests with the race detector
+make fmt        # Format Go source
 ```
+
+Use `make help` for all targets. `make clean` removes only `./aks-cli`, leaving
+saved configurations untouched. Override the Go executable with `make GO=/path/to/go`.
 
 Tests use temporary configuration paths, simulated terminal screens, and local
 PTY fixtures. They do not read your real configuration, overwrite your clipboard,
