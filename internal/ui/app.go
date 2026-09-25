@@ -75,12 +75,7 @@ func New(doc config.Document, save func(config.Document) error, defaults config.
 	a.pages.AddPage("main", root, true, true)
 	a.application.SetRoot(a.pages, true).EnableMouse(true)
 	a.application.SetInputCapture(a.handleKey)
-	a.application.SetMouseCapture(func(event *tcell.EventMouse, action tview.MouseAction) (*tcell.EventMouse, tview.MouseAction) {
-		if a.compact {
-			return nil, action
-		}
-		return event, action
-	})
+	a.application.SetMouseCapture(a.handleMouse)
 
 	small := tview.NewTextView().SetTextAlign(tview.AlignCenter).
 		SetText(fmt.Sprintf("Terminal too small.\nResize to at least %dx%d.\nCtrl-C: quit", minWidth, minHeight))
@@ -204,6 +199,15 @@ func (a *App) handleKey(event *tcell.EventKey) *tcell.EventKey {
 			a.closeForm()
 			return nil
 		}
+		if isSelectAll(event) {
+			for i := 0; i < a.form.GetFormItemCount(); i++ {
+				if field, ok := a.form.GetFormItem(i).(*tview.InputField); ok && field.HasFocus() {
+					// tview's native select-all binding preserves selection,
+					// replacement, paste, and undo without changing the text.
+					return tcell.NewEventKey(tcell.KeyCtrlL, 0, tcell.ModNone)
+				}
+			}
+		}
 		return event
 	}
 	if event.Key() == tcell.KeyF2 {
@@ -217,6 +221,7 @@ func (a *App) handleKey(event *tcell.EventKey) *tcell.EventKey {
 		}
 		return event
 	}
+
 	if event.Key() == tcell.KeyRune && event.Rune() == 'n' {
 		a.showForm()
 		return nil
@@ -253,4 +258,22 @@ func (a *App) handleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 	return event
+}
+
+func (a *App) handleMouse(event *tcell.EventMouse, action tview.MouseAction) (*tcell.EventMouse, tview.MouseAction) {
+	if a.compact {
+		return nil, action
+	}
+	if a.editing && action == tview.MouseLeftDoubleClick {
+		for i := 0; i < a.form.GetFormItemCount(); i++ {
+			field, ok := a.form.GetFormItem(i).(*tview.InputField)
+			if ok && field.InRect(event.Position()) {
+				a.application.SetFocus(field)
+				field.InputHandler()(tcell.NewEventKey(tcell.KeyCtrlL, 0, tcell.ModNone),
+					func(p tview.Primitive) { a.application.SetFocus(p) })
+				return nil, tview.MouseConsumed
+			}
+		}
+	}
+	return event, action
 }

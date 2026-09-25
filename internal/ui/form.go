@@ -3,8 +3,15 @@ package ui
 import (
 	"aks-cli/internal/config"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+func isSelectAll(event *tcell.EventKey) bool {
+	return event.Key() == tcell.KeyCtrlA ||
+		event.Key() == tcell.KeyRune && (event.Rune() == 'a' || event.Rune() == 'A') &&
+			event.Modifiers()&(tcell.ModCtrl|tcell.ModMeta|tcell.ModAlt) != 0
+}
 
 func (a *App) showForm() {
 	a.editing = true
@@ -21,7 +28,7 @@ func (a *App) showForm() {
 		SetCancelFunc(a.closeForm)
 	a.form.SetBorder(true).SetTitle(" New local configuration ")
 	a.formError = tview.NewTextView().SetDynamicColors(false).SetWordWrap(true)
-	help := tview.NewTextView().SetText(" Tab/Shift-Tab: fields | Enter: next/activate | Esc: cancel | Ctrl-C: quit")
+	help := tview.NewTextView().SetText(" Ctrl-A/double-click: select all | Tab: next | Enter: activate | Esc: cancel")
 	page := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(a.form, 0, 1, true).
 		AddItem(a.formError, 4, 0, false).

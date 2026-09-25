@@ -47,6 +47,7 @@ exit status appear in the terminal pane.
 | --- | --- |
 | `n` outside the form and terminal / New button | Open a new configuration |
 | `Tab` / `Shift-Tab` | Move focus between panes/buttons or form fields |
+| Ctrl-A / double-click a field in New | Select all text; typing or pasting replaces the selection |
 | Up / Down in the list | Select a configuration |
 | Up / Down / Page Up / Page Down anywhere in the preview | Scroll between sections, including when text or a button has focus |
 | Left / Right on a section's text | Inspect long values horizontally |
@@ -63,6 +64,11 @@ Commands use POSIX-shell `\` line continuations, with each option and its value
 on an indented line. Exceptionally long values can still be inspected by focusing
 that section's text and scrolling right. Tab traverses each section's text,
 Execute, and Copy controls, automatically bringing the focused section into view.
+
+In the New form, Command-A also selects all when your terminal forwards it as
+Meta-A/Alt-A or Ctrl-A. Some macOS terminals reserve Command-A for their own
+selection: map Command-A to send `0x01` (Ctrl-A), or use Ctrl-A/double-click instead.
+These bindings do not change Ctrl-A behavior inside the execution terminal.
 
 Clipboard support uses `pbcopy` on macOS. On Linux, install `wl-clipboard` for
 Wayland or `xclip`/`xsel` for X11, with access to the desktop display session.
