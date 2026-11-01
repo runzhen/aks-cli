@@ -12,7 +12,7 @@ import (
 type previewSection struct {
 	data    commands.Section
 	panel   *tview.Flex
-	text    *tview.TextView
+	text    *tview.TextArea
 	execute *tview.Button
 	copy    *tview.Button
 }
@@ -65,21 +65,37 @@ func (p *preview) scrollTo(index int) {
 	p.SetOffset(max(0, min(index, len(p.sections)-1)), 0)
 }
 
-func (p *preview) setSections(sections []commands.Section, copyText, executeSection func(commands.Section)) {
+func (p *preview) setSections(sections []commands.Section, drafts map[string]string, copyText, executeSection func(commands.Section)) {
 	p.Clear()
 	p.sections = nil
 	p.SetOffset(0, 0)
 	heights := make([]int, 0, len(sections))
 	for i, section := range sections {
-		text := tview.NewTextView().SetDynamicColors(false).SetWrap(false).SetText(section.Content)
-		execute := tview.NewButton("Execute").SetSelectedFunc(func() { executeSection(section) })
-		copyButton := tview.NewButton("Copy").SetSelectedFunc(func() { copyText(section) })
+		content := section.Content
+		if draft, ok := drafts[section.Title]; ok {
+			content = draft
+		}
+		text := tview.NewTextArea().SetWrap(false).SetText(content, false)
+		execute := tview.NewButton("Execute").SetSelectedFunc(func() { executeSection(section.WithContent(text.GetText())) })
+		copyButton := tview.NewButton("Copy").SetSelectedFunc(func() { copyText(section.WithContent(text.GetText())) })
 		buttons := tview.NewFlex().
 			AddItem(execute, 11, 0, false).
 			AddItem(nil, 1, 0, false).
 			AddItem(copyButton, 8, 0, false)
 		panel := tview.NewFlex().SetDirection(tview.FlexRow)
-		panel.SetBorder(true).SetTitle(" " + section.Title + " ")
+		panel.SetBorder(true)
+		updateDraft := func() {
+			title := section.Title
+			if current := text.GetText(); current != section.Content {
+				drafts[section.Title] = current
+				title += " *"
+			} else {
+				delete(drafts, section.Title)
+			}
+			panel.SetTitle(" " + title + " ")
+		}
+		text.SetChangedFunc(updateDraft)
+		updateDraft()
 		warningHeight := 0
 		if section.Warning != "" {
 			warningHeight = 3
@@ -96,6 +112,15 @@ func (p *preview) setSections(sections []commands.Section, copyText, executeSect
 		heights = []int{0}
 	}
 	p.SetRows(heights...)
+}
+
+func (p *preview) editorFocused() bool {
+	for _, section := range p.sections {
+		if section.text.HasFocus() {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *preview) focusables() []tview.Primitive {

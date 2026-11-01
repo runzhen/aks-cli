@@ -39,6 +39,12 @@ The right pane has eight bordered sections: **Variables** and one for each of th
 seven Azure commands. Every section has **Execute** and **Copy** buttons.
 **Variables** appears immediately after `az aks nodepool add`, before
 `az aks get-credentials`.
+Each section is an editable multiline text box, initially filled with the
+generated default. Click the text or focus it with Tab to edit it. A `*` in the
+section title marks a modified command. **Copy and Execute use the current text**,
+including any added flags, changed values, or additional shell commands.
+Edits are kept separately for each saved cluster during the current app session.
+They are not written to `aks-cli.json` and reset to generated defaults on restart.
 Execute opens a terminal pane across the bottom, beneath both existing panes,
 and runs that section. Copy sends only that section's data to the
 system clipboard (no borders, buttons, or warnings). Variables are copied as six
@@ -48,12 +54,16 @@ exit status appear in the terminal pane.
 
 | Input | Action |
 | --- | --- |
-| `n` outside the form and terminal / New button | Open a new configuration |
+| `n` outside editors, the form, and terminal / New button | Open a new configuration |
 | `Tab` / `Shift-Tab` | Move focus between panes/buttons or form fields |
 | Ctrl-A / double-click a field in New | Select all text; typing or pasting replaces the selection |
 | Up / Down in the list | Select a configuration |
-| Up / Down / Page Up / Page Down anywhere in the preview | Scroll between sections, including when text or a button has focus |
-| Left / Right on a section's text | Inspect long values horizontally |
+| Arrow keys in a command editor | Move the editing cursor |
+| Enter in a command editor | Insert a newline |
+| Ctrl-A in a command editor | Select all; typing or pasting replaces the selection |
+| Ctrl-Z / Ctrl-Y in a command editor | Undo / redo |
+| Up / Down outside command editors, or Page Up / Page Down anywhere in the preview | Scroll between sections |
+| Escape in a command editor | Leave the editor and focus section navigation |
 | Mouse click | Select a cluster, field, or button |
 | Mouse wheel over the saved list or command sections | Scroll that pane |
 | Enter | Activate a button or advance a form field |
@@ -95,11 +105,18 @@ command can run at a time; hiding the pane or selecting another saved cluster
 does not cancel or retarget it. The pane displays the current terminal screen,
 not a persistent scrollback log or a general-purpose interactive shell.
 
-Azure commands run directly with the exact argument list used by the preview,
-not by evaluating copied text in a shell. **Variables** runs its quoted exports
+Unmodified Azure commands run directly with the exact generated argument list.
+**Edited sections run their current text with `/bin/sh -c`**, supporting multiline
+commands, pipes, and redirects. Every edited command requires confirmation,
+even if its original section was not destructive; a scrollable review shows the
+exact text before execution. Empty commands are rejected. Edits can remove
+subscription scoping or perform arbitrary operations, so review them carefully.
+
+Unmodified **Variables** runs its quoted exports
 in a short-lived `/bin/sh` process and prints the resulting values. This does not
 change your parent shell's environment; Azure commands already include their
-saved configuration values explicitly.
+saved configuration values explicitly. Edited Variables runs only the edited
+text, without appending a printout.
 
 The three delete commands open a confirmation dialog with **Cancel selected by
 default**. Check the resource names and subscription before confirming. An
@@ -179,8 +196,8 @@ with these deliberate differences:
 - Deletion commands are alternatives for the chosen scope, not a sequence to run
   together. **Deleting a resource group deletes ALL resources in it**, not just
   the AKS cluster. Review destructive commands before copying them elsewhere.
-- Shell-sensitive values are quoted as literal arguments, and preview text is
-  rendered without interpreting terminal color tags.
+- Generated shell-sensitive values are quoted as literal arguments, and editor
+  text is rendered without interpreting terminal color tags.
 - `az aks get-credentials` retrieves standard user credentials for the selected
   cluster and subscription, updates your local kubeconfig, and changes its current
   context. It does not request `--admin` or force `--overwrite-existing`; answer

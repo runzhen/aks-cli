@@ -27,7 +27,7 @@ func simulate(t *testing.T, doc config.Document, save func(config.Document) erro
 		t.Errorf("unexpected command execution in UI test: %s", section.Title)
 	}
 	screen := tcell.NewSimulationScreen("UTF-8")
-	a.application.SetScreen(screen)
+	a.application.SetScreen(&inputScreen{Screen: screen})
 	screen.SetSize(120, 32)
 	a.application.ForceDraw()
 	t.Cleanup(func() {
@@ -70,7 +70,7 @@ func screenText(screen tcell.SimulationScreen) string {
 func previewText(a *App) string {
 	var parts []string
 	for _, section := range a.preview.sections {
-		parts = append(parts, section.text.GetText(false))
+		parts = append(parts, section.text.GetText())
 	}
 	return strings.Join(parts, "\n")
 }
@@ -105,8 +105,9 @@ func TestSelectionFocusMouseAndScrolling(t *testing.T) {
 		t.Fatal("preview did not scroll vertically")
 	}
 	press(a, tcell.KeyTab, 0)
+	press(a, tcell.KeyCtrlL, 0)
 	press(a, tcell.KeyRight, 0)
-	_, column := a.preview.sections[0].text.GetScrollOffset()
+	_, column := a.preview.sections[0].text.GetOffset()
 	if column == 0 {
 		t.Fatal("preview did not scroll horizontally")
 	}
@@ -378,6 +379,12 @@ func TestPreviewArrowKeysFromEveryControl(t *testing.T) {
 		before, _ := a.preview.GetOffset()
 		press(a, tcell.KeyDown, 0)
 		down, _ := a.preview.GetOffset()
+		if _, editor := target.(*tview.TextArea); editor {
+			if down != before || a.application.GetFocus() != target {
+				t.Fatal("Down in an editor scrolled the container instead of moving the cursor")
+			}
+			continue
+		}
 		if down != min(before+1, len(a.preview.sections)-1) {
 			t.Fatalf("Down from %T: offset %d -> %d", target, before, down)
 		}

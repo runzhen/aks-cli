@@ -19,6 +19,16 @@ type Section struct {
 	Content string
 	Warning string
 	Command Command
+	Edited  bool
+}
+
+func (s Section) WithContent(content string) Section {
+	if content != s.Content {
+		s.Content = content
+		s.Edited = true
+		s.Command = Command{Executable: "/bin/sh", Args: []string{"-c", content}}
+	}
+	return s
 }
 
 func (c Command) Destructive() bool {

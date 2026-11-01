@@ -38,6 +38,7 @@ type App struct {
 	confirming      bool
 	screen          tcell.Screen
 	runSection      func(commands.Section)
+	drafts          map[config.Cluster]map[string]string
 }
 
 func New(doc config.Document, save func(config.Document) error, defaults config.Cluster) *App {
@@ -48,6 +49,7 @@ func New(doc config.Document, save func(config.Document) error, defaults config.
 		save:        save,
 		defaults:    defaults,
 		copyText:    clipboard.Write,
+		drafts:      make(map[config.Cluster]map[string]string),
 	}
 	a.preview = newPreview(func(p tview.Primitive) { a.application.SetFocus(p) })
 	a.terminal = newTerminalPane()
@@ -75,7 +77,7 @@ func New(doc config.Document, save func(config.Document) error, defaults config.
 		AddItem(a.split, 0, 1, true).
 		AddItem(footer, 1, 0, false)
 	a.pages.AddPage("main", root, true, true)
-	a.application.SetRoot(a.pages, true).EnableMouse(true)
+	a.application.SetRoot(a.pages, true).EnableMouse(true).EnablePaste(true)
 	a.application.SetInputCapture(a.handleKey)
 	a.application.SetMouseCapture(a.handleMouse)
 
@@ -106,6 +108,19 @@ func New(doc config.Document, save func(config.Document) error, defaults config.
 }
 
 func (a *App) Run() error {
+	if a.screen == nil {
+		screen, err := tcell.NewScreen()
+		if err != nil {
+			return err
+		}
+		input := &inputScreen{Screen: screen}
+		if err := input.Init(); err != nil {
+			return err
+		}
+		a.application.SetScreen(input)
+		input.EnableMouse()
+		input.EnablePaste()
+	}
 	err := a.application.Run()
 	return errors.Join(err, a.terminal.close())
 }
@@ -122,13 +137,17 @@ func (a *App) refresh() {
 func (a *App) selectCluster(index int) {
 	a.status.SetText("")
 	if len(a.doc.Clusters) == 0 {
-		a.preview.setSections(nil, a.copySection, a.requestExecute)
+		a.preview.setSections(nil, nil, a.copySection, a.requestExecute)
 		return
 	}
 	if index < 0 || index >= len(a.doc.Clusters) {
 		return
 	}
-	a.preview.setSections(commands.Sections(a.doc.Clusters[index]), a.copySection, a.requestExecute)
+	cluster := a.doc.Clusters[index]
+	if a.drafts[cluster] == nil {
+		a.drafts[cluster] = make(map[string]string)
+	}
+	a.preview.setSections(commands.Sections(cluster), a.drafts[cluster], a.copySection, a.requestExecute)
 }
 
 func (a *App) copySection(section commands.Section) {
@@ -155,6 +174,7 @@ func (a *App) removeCluster(index int) {
 	if index < selected {
 		selected--
 	}
+	delete(a.drafts, a.doc.Clusters[index])
 	a.doc = next
 	a.refresh()
 	if len(next.Clusters) == 0 {
@@ -224,6 +244,18 @@ func (a *App) handleKey(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	}
 
+	if a.preview.editorFocused() {
+		switch {
+		case event.Key() == tcell.KeyEscape:
+			a.application.SetFocus(a.preview)
+			return nil
+		case isSelectAll(event):
+			return tcell.NewEventKey(tcell.KeyCtrlL, 0, tcell.ModNone)
+		case event.Key() != tcell.KeyTab && event.Key() != tcell.KeyBacktab &&
+			event.Key() != tcell.KeyPgUp && event.Key() != tcell.KeyPgDn:
+			return event
+		}
+	}
 	if event.Key() == tcell.KeyRune && event.Rune() == 'n' {
 		a.showForm()
 		return nil
